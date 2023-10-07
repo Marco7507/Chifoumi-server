@@ -1,16 +1,32 @@
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
+const cors = require('cors');
 
 const app = express();
 const server = http.createServer(app);
-const io = socketIo(server);
+const io = new socketIo.Server(server, {
+  cors: {
+    origin: '*',
+  },
+});
+
+app.use(cors());
+
+app.get('/', (req, res) => {
+  res.send('<h1>Hello world</h1>');
+});
 
 // Structure de données pour les parties en cours
 const games = {};
 
 io.on('connection', (socket) => {
-  console.log('Un joueur s\'est connecté');
+  console.log('Un joueur s\'est connecté', socket.id);
+
+  socket.on('ping', () => {
+    console.log('pong');
+    socket.emit('pong');
+  });
 
   // Gérer la création de parties
   socket.on('createGame', () => {
