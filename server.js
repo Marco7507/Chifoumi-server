@@ -38,6 +38,7 @@ io.on("connection", (socket) => {
         choice: player.choice,
       };
     });
+    console.log("game", game)
     socket.to(gameId).emit("game update", gameData);
   }
 
@@ -69,7 +70,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("create game", () => {
-    const gameId = generateGameId();
+    gameId = generateGameId();
     games[gameId] = {
       players: {
         [socket.id]: {
@@ -81,10 +82,8 @@ io.on("connection", (socket) => {
         },
       },
       result: null,
-      gameMode: "multiplayer",
     };
     socket.join(gameId);
-    gameId = gameId;
     socket.emit("game created", gameId);
   });
 
