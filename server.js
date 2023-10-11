@@ -17,35 +17,27 @@ app.get("/", (req, res) => {
   res.send("<h1>Hello world</h1>");
 });
 
-// Structure de données pour les parties en cours
 const games = {};
 
 io.on("connection", (socket) => {
-  console.log("Un joueur s'est connecté", socket.id);
+  //console.log("new connection", socket.id);
+
   let gameId = null;
+  let user = {
+    id: "",
+    name: "",
+  }
 
   function sendGameUpdate() {
     const game = games[gameId];
-    const gameData = {
-      players: {},
-      result: game.result,
-    };
-    Object.keys(game.players).forEach((playerId) => {
-      const player = game.players[playerId];
-      gameData.players[playerId] = {
-        name: player.name,
-        score: player.score,
-        choice: player.choice,
-      };
-    });
-    console.log("game", game)
-    socket.to(gameId).emit("game update", gameData);
+    //console.log("send update game", game)
+    socket.to(gameId).emit("game update", game);
   }
 
   function checkResult() {
     const game = games[gameId];
-    const player1 = game.players[Object.keys(game.players)[0]];
-    const player2 = game.players[Object.keys(game.players)[1]];
+    const player1 = game.players[0];
+    const player2 = game.players[0];
 
     if (player1.choice === player2.choice) {
       game.result = "draw";
@@ -64,62 +56,86 @@ io.on("connection", (socket) => {
     sendGameUpdate();
   }
 
+  function getGameUser() {
+    // console.log("games[gameId]?.players", games[gameId]?.players)
+    // console.log("result", games[gameId]?.players.find((p) => p.id === user.id))
+    return games[gameId]?.players.find((p) => p.id === user.id)
+  }
+
   socket.on("ping", () => {
-    console.log("pong");
-    socket.emit("pong");
+    console.log("get user", getGameUser())
   });
+
+  socket.on("connect user", (id, name) => {
+    console.log("connect user", id, name)
+    if (!id) {
+      id = generateUserId();
+    }
+    if (!name) {
+      name = `Player-${id}`
+    } 
+    user = {
+      id,
+      name
+    }
+    socket.emit("connected", user);
+  })
 
   socket.on("create game", () => {
     gameId = generateGameId();
+    console.log("user", user)
     games[gameId] = {
-      players: {
-        [socket.id]: {
-          socket,
-          name: "Player 1",
+      players: [
+        {
+          id: user.id,
+          name: user.name,
           score: 0,
           choice: null,
-          role: "host",
-        },
-      },
+          role: "host"
+        }
+      ],
       result: null,
     };
     socket.join(gameId);
     socket.emit("game created", gameId);
   });
 
-  socket.on("join game", (gameId) => {
-    const game = games[gameId];
+  socket.on("join game", (newGameId) => {
+    const game = games[newGameId];
+    gameId = newGameId;
+
     if (!game) {
       socket.emit("game not found");
       return;
     }
-    // check if game is full
-    if (Object.keys(game.players).length >= 2) {
-      socket.emit("game full");
-      return;
+    if (!getGameUser()) {
+      if (game.players.length >= 2) {
+        socket.emit("game full");
+        return;
+      }
+      game.players.push({
+        id: user.id,
+        name: user.name,
+        score: 0,
+        choice: null,
+        role: "guest",
+      });
     }
-    game.players[socket.id] = {
-      socket,
-      name: "Player 2",
-      score: 0,
-      choice: null,
-      role: "guest",
-    };
+    
     socket.join(gameId);
-    gameId = gameId;
-    socket.emit("game joined", gameId);
+    socket.emit("game joined", games[gameId]);
     sendGameUpdate();
   });
 
-  socket.on("set name", (name) => {
-    const game = games[gameId];
-    if (!game) {
-      socket.emit("game not found");
-      return;
-    }
-    game.players[socket.id].name = name;
-    sendGameUpdate();
-  });
+  // socket.on("set name", (name) => {
+  //   const game = games[gameId];
+  //   if (!game) {
+  //     socket.emit("game not found");
+  //     return;
+  //   }
+  //   game.players[socket.id].name = name;
+  //   sendGameUpdate();
+  // });
 
   socket.on("set choice", (choice) => {
     const game = games[gameId];
@@ -165,6 +181,10 @@ io.on("connection", (socket) => {
 // Fonction pour générer un ID de partie unique
 function generateGameId() {
   return Math.random().toString(16).slice(2, 6).toUpperCase();
+}
+
+function generateUserId() {
+  return Math.random().toString(16).slice(2, 10).toUpperCase();
 }
 
 const PORT = process.env.PORT || 3000;
