@@ -31,13 +31,20 @@ io.on("connection", (socket) => {
   function sendGameUpdate() {
     const game = games[gameId];
     //console.log("send update game", game)
-    socket.to(gameId).emit("game update", game);
+    console.log("emit to gameId", gameId)
+    io.to(gameId).emit("game update", game);
   }
 
   function checkResult() {
     const game = games[gameId];
     const player1 = game.players[0];
-    const player2 = game.players[0];
+    const player2 = game.players[1];
+
+    console.log(player1.choice, player2.choice)
+
+    if (!player1.choice || !player2.choice) {
+      return;
+    }
 
     if (player1.choice === player2.choice) {
       game.result = "draw";
@@ -46,10 +53,10 @@ io.on("connection", (socket) => {
       (player1.choice === "paper" && player2.choice === "rock") ||
       (player1.choice === "scissors" && player2.choice === "paper")
     ) {
-      game.result = player1.socket.id;
+      game.result = player1.id;
       player1.score++;
     } else {
-      game.result = player2.socket.id;
+      game.result = player2.id;
       player2.score++;
     }
 
@@ -82,8 +89,12 @@ io.on("connection", (socket) => {
   })
 
   socket.on("create game", () => {
-    gameId = generateGameId();
     console.log("user", user)
+    if (!user.id || !user.name) {
+      socket.emit("user not found");
+      return;
+    }
+    gameId = generateGameId();
     games[gameId] = {
       players: [
         {
@@ -91,7 +102,8 @@ io.on("connection", (socket) => {
           name: user.name,
           score: 0,
           choice: null,
-          role: "host"
+          role: "host",
+          socketId: socket.id,
         }
       ],
       result: null,
@@ -108,7 +120,8 @@ io.on("connection", (socket) => {
       socket.emit("game not found");
       return;
     }
-    if (!getGameUser()) {
+    const player = getGameUser();
+    if (!player) {
       if (game.players.length >= 2) {
         socket.emit("game full");
         return;
@@ -119,7 +132,10 @@ io.on("connection", (socket) => {
         score: 0,
         choice: null,
         role: "guest",
+        socketId: socket.id,
       });
+    } else {
+      player.socketId = socket.id;
     }
     
     socket.join(gameId);
@@ -127,38 +143,28 @@ io.on("connection", (socket) => {
     sendGameUpdate();
   });
 
-  // socket.on("set name", (name) => {
-  //   const game = games[gameId];
-  //   if (!game) {
-  //     socket.emit("game not found");
-  //     return;
-  //   }
-  //   game.players[socket.id].name = name;
-  //   sendGameUpdate();
-  // });
-
   socket.on("set choice", (choice) => {
     const game = games[gameId];
     if (!game) {
       socket.emit("game not found");
       return;
     }
-    game.players[socket.id].choice = choice;
+    getGameUser().choice = choice;
     if (choice) {
       checkResult();
     }
-    sendGameUpdate();
   });
 
   socket.on("continue", () => {
+    console.log("continue")
     const game = games[gameId];
     if (!game) {
       socket.emit("game not found");
       return;
     }
     game.result = null;
-    Object.keys(game.players).forEach((playerId) => {
-      game.players[playerId].choice = null;
+    game.players.forEach(player => {
+      player.choice = null;
     });
     sendGameUpdate();
   });
@@ -170,9 +176,9 @@ io.on("connection", (socket) => {
       return;
     }
     game.result = null;
-    Object.keys(game.players).forEach((playerId) => {
-      game.players[playerId].choice = null;
-      game.players[playerId].score = 0;
+    game.players.forEach(player => {
+      player.choice = null;
+      player.score = 0;
     });
     sendGameUpdate();
   });
