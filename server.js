@@ -52,9 +52,9 @@ io.on("connection", (socket) => {
     if (player1.choice === player2.choice) {
       game.result = "draw";
     } else if (
-      (player1.choice === "rock" && player2.choice === "scissor") ||
+      (player1.choice === "rock" && player2.choice === "scissors") ||
       (player1.choice === "paper" && player2.choice === "rock") ||
-      (player1.choice === "scissor" && player2.choice === "paper")
+      (player1.choice === "scissors" && player2.choice === "paper")
     ) {
       game.result = player1.id;
       player1.score++;
